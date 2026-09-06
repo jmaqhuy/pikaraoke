@@ -4,8 +4,10 @@
 .venv*
 /.vscode/
 __pycache__/
-dist/
+/dist/
 build/
+node_modules/
+frontend/node_modules/
 songs/
 qrcode.png
 .DS_Store

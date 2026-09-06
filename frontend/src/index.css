@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #08090d;
+    color: #f1f5f9;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Custom sleek scrollbar for KTV lists */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(18, 21, 32, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(42, 52, 82, 0.7);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.6);
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(18, 21, 32, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(42, 52, 82, 0.5);
+}
+
+.glass-dropdown {
+  background: rgba(15, 18, 28, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 73, 115, 0.6);
+}
+
+/* Touch feedback ripple */
+.touch-press {
+  transition: transform 0.08s ease, filter 0.08s ease;
+}
+
+.touch-press:active {
+  transform: scale(0.96);
+  filter: brightness(1.2);
+}
+
+/* Pulse glow animation */
+@keyframes neon-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px -2px rgba(244, 63, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px 2px rgba(244, 63, 94, 0.7);
+  }
+}
+
+.animate-neon-pulse {
+  animation: neon-pulse 3s infinite ease-in-out;
+}

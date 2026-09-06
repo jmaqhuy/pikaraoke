@@ -7,7 +7,8 @@ let octopusInstance = null;
 let showMenu = false;
 let menuButtonVisible = false;
 let autoplayConfirmed = false;
-let volume = 0.85;
+const isMuted = new URLSearchParams(window.location.search).has('muted') || window.self !== window.top;
+let volume = isMuted ? 0 : 0.85;
 const playbackStartTimeout = 10000;
 const bgMediaResumeDelay = 2000;
 let isScoreShown = false;
@@ -24,6 +25,7 @@ let scoreReviews = {
   high: ["Great job!"],
 };
 let isMaster = false;
+let pendingEndReason = null;
 let uiScale = null;
 let clockIntervalId = null;
 
@@ -56,6 +58,10 @@ const formatTime = (seconds) => {
 }
 
 const testAutoplayCapability = async () => {
+  if (isMuted) {
+    handleConfirmation();
+    return;
+  }
   // Test if autoplay with audio is allowed using a real video file
   try {
     const testVideo = document.createElement('video');
@@ -104,9 +110,14 @@ const hideVideo = () => {
 }
 
 const endSong = async (reason = null, showScore = false) => {
+  const endedUrl = currentVideoUrl;
   if (showScore && !PikaraokeConfig.disableScore) {
     isScoreShown = true;
-    await startScore(withBasePath("/static/"));
+    try {
+      await startScore(withBasePath("/static/"));
+    } catch (e) {
+      console.log("Score screen failed", e);
+    }
     isScoreShown = false;
   }
   currentVideoUrl = null;
@@ -119,10 +130,16 @@ const endSong = async (reason = null, showScore = false) => {
   $("#video-source").attr("src", "");
   video.load();
   hideVideo();
-  if (isMaster) {
+  if (isMuted) {
+    console.log("Preview display (muted): skipping end_song emission");
+  } else if (isMaster) {
     socket.emit("end_song", reason);
   } else {
-    console.log("Slave active (read-only): skipping end_song emission");
+    // Role race: the server may still consider a stale connection the master.
+    // Hold the event and flush it when this display is promoted, so a song
+    // that ends during the gap never leaves the server stuck "playing".
+    pendingEndReason = { reason, url: endedUrl };
+    console.log("Not master: holding end_song until master role is granted");
   }
 }
 
@@ -143,6 +160,7 @@ const getNextBgMusicSong = () => {
 }
 
 const playBGMusic = async (play) => {
+  if (isMuted) return;
   const audio = getBackgroundMusicPlayer();
   if (play) {
     if (PikaraokeConfig.disableBgMusic) return;
@@ -165,6 +183,10 @@ const playBGMusic = async (play) => {
 
 const playBGVideo = async (play) => {
   const bgVideo = getBackgroundVideoPlayer();
+  if (bgVideo && isMuted) {
+    bgVideo.muted = true;
+    bgVideo.volume = 0;
+  }
   const bgVideoContainer = $('#bg-video-container');
 
   if (play) {
@@ -353,7 +375,10 @@ const handleNowPlayingUpdate = (np) => {
     }
 
     video.load();
-    if (volume !== np.volume) {
+    if (isMuted) {
+      video.muted = true;
+      video.volume = 0;
+    } else if (volume !== np.volume) {
       volume = np.volume;
       video.volume = volume;
     }
@@ -451,6 +476,10 @@ const setupOverlayMenus = () => {
 const setupVideoPlayer = () => {
   $('#video-container').hide();
   const video = getVideoPlayer();
+  if (isMuted && video) {
+    video.muted = true;
+    video.volume = 0;
+  }
   video.addEventListener("play", () => {
     $("#video-container").show();
     if (isMaster) {
@@ -576,11 +605,23 @@ const applyPreferencesReset = (defaults) => {
 const setupSocketEvents = () => {
   socket.on('connect', () => {
     console.log('Socket connected');
-    socket.emit("register_splash");
+    // Muted preview (kiosk iframe) is display-only: it must never compete
+    // for the master role, or a preview reload would rewind the TV screen.
+    if (!isMuted) socket.emit("register_splash");
   });
   socket.on('splash_role', (role) => {
     isMaster = (role === "master");
     console.log("Splash role assigned:", role, isMaster ? "(Master active)" : "(Slave active - read-only)");
+    if (isMaster && pendingEndReason) {
+      const { reason, url } = pendingEndReason;
+      pendingEndReason = null;
+      if (url === nowPlaying.now_playing_url) {
+        console.log("Flushing held end_song:", reason);
+        socket.emit("end_song", reason);
+      } else {
+        console.log("Dropping stale held end_song (server moved on)");
+      }
+    }
   });
   socket.on('connect_error', (error) => {
     console.error('Connection error:', error);
@@ -731,7 +772,7 @@ setupSocketEvents();
 handleSocketRecovery();
 
 // Fallback: if socket connected before listeners were attached, register now
-if (socket.connected) {
+if (socket.connected && !isMuted) {
   console.log('Socket already connected, registering splash...');
   socket.emit("register_splash");
 }

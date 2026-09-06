@@ -207,17 +207,17 @@ def build_ytdl_download_command(
     return cmd
 
 
-def get_search_results(query: str) -> list[SearchResult]:
+def get_search_results(query: str, num_results: int = 10) -> list[SearchResult]:
     """Search YouTube for videos matching the query.
 
     Args:
         query: Search query string.
+        num_results: Maximum number of results to return.
 
     Returns:
         One SearchResult per hit, in the order yt-dlp reported them.
     """
     logging.info(f"Searching YouTube for: {query}")
-    num_results = 10
     yt_search = f'ytsearch{num_results}:"{query}"'
     cmd = yt_dlp_cmd + ["-j", "--no-playlist", "--flat-playlist", yt_search]
     logging.debug(f"yt-dlp search command: {' '.join(cmd)}")
